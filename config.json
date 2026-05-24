@@ -1,0 +1,17 @@
+{
+  "mode": "server",
+  "server_port": 24800,
+  "server_ip": "auto",
+  "screens": [
+    { "id": 0, "name": "Main",    "ip": "self",          "width": 1920, "height": 1080 },
+    { "id": 1, "name": "Laptop2", "ip": "192.168.1.101", "width": 1920, "height": 1080 },
+    { "id": 2, "name": "Laptop3", "ip": "192.168.1.102", "width": 1920, "height": 1080 },
+    { "id": 3, "name": "Laptop4", "ip": "192.168.1.103", "width": 1920, "height": 1080 }
+  ],
+  "layout": "horizontal",
+  "hotkey_switch": "ctrl+alt+right",
+  "hotkey_back": "ctrl+alt+left",
+  "edge_switch": true,
+  "clipboard_sync": true,
+  "log_level": "info"
+}

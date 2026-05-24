@@ -1,0 +1,6 @@
+netinput-server
+netinput-client
+*.out
+*.test
+go.sum
+.claude/
