@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NetInput Share — Software KVM over WiFi for Linux</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Design Tokens (Anthropic palette) ── */
+    :root {
+      --cream:       #F7F4EF;
+      --cream-dark:  #F0EDE6;
+      --white:       #FFFFFF;
+      --dark:        #1A1A1A;
+      --dark-2:      #252525;
+      --coral:       #D97757;
+      --coral-hover: #C96645;
+      --coral-light: #FFF8F5;
+      --text:        #1A1A1A;
+      --text-2:      #6B6B6B;
+      --text-3:      #9B7A5E;
+      --border:      #E8DDD3;
+      --border-2:    #D4C5B8;
+      --code-bg:     #2A2A2A;
+      --font:        'Inter', system-ui, sans-serif;
+      --mono:        'JetBrains Mono', 'Fira Code', monospace;
+    }
+
+    /* ── Reset ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body { font-family: var(--font); background: var(--cream); color: var(--text); line-height: 1.6; }
+    img, svg { display: block; max-width: 100%; }
+    a { color: inherit; text-decoration: none; }
+
+    /* ── Utility ── */
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+    .tag {
+      display: inline-block;
+      font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
+      color: var(--coral); background: var(--coral-light); border: 1px solid #F4C5A9;
+      padding: 4px 10px; border-radius: 20px; margin-bottom: 16px;
+    }
+    .section-label { font-size: 13px; font-weight: 600; color: var(--text-2); letter-spacing: .06em; text-transform: uppercase; margin-bottom: 12px; }
+
+    /* ── Nav ── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(247, 244, 239, 0.92); backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-inner {
+      display: flex; align-items: center; justify-content: space-between;
+      height: 60px; max-width: 1100px; margin: 0 auto; padding: 0 24px;
+    }
+    .nav-logo { font-size: 16px; font-weight: 700; color: var(--dark); display: flex; align-items: center; gap: 8px; }
+    .nav-logo span { color: var(--coral); }
+    .nav-links { display: flex; gap: 28px; align-items: center; }
+    .nav-links a { font-size: 14px; font-weight: 500; color: var(--text-2); transition: color .15s; }
+    .nav-links a:hover { color: var(--coral); }
+    .nav-cta {
+      font-size: 13px; font-weight: 600; color: var(--white);
+      background: var(--dark); padding: 8px 18px; border-radius: 6px; transition: background .15s;
+    }
+    .nav-cta:hover { background: var(--dark-2); }
+
+    /* ── Hero ── */
+    .hero {
+      background: var(--dark);
+      padding: 96px 0 80px;
+      position: relative; overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse 60% 60% at 70% 40%, rgba(217,119,87,.18) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-inner { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
+      color: var(--coral); background: rgba(217,119,87,.12); border: 1px solid rgba(217,119,87,.3);
+      padding: 6px 14px; border-radius: 20px; margin-bottom: 28px;
+    }
+    .hero-badge::before { content: '●'; font-size: 8px; }
+    .hero h1 {
+      font-size: clamp(36px, 6vw, 68px); font-weight: 800; line-height: 1.08;
+      color: var(--white); letter-spacing: -.03em; margin-bottom: 24px; max-width: 780px;
+    }
+    .hero h1 em { color: var(--coral); font-style: normal; }
+    .hero p {
+      font-size: 18px; color: #A8A8A8; max-width: 560px; line-height: 1.7; margin-bottom: 40px;
+    }
+    .hero-ctas { display: flex; gap: 12px; flex-wrap: wrap; }
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 15px; font-weight: 600; color: var(--dark);
+      background: var(--coral); padding: 13px 26px; border-radius: 8px;
+      transition: background .15s, transform .1s;
+    }
+    .btn-primary:hover { background: var(--coral-hover); transform: translateY(-1px); }
+    .btn-secondary {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 15px; font-weight: 600; color: var(--white);
+      background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.18);
+      padding: 13px 26px; border-radius: 8px; transition: background .15s;
+    }
+    .btn-secondary:hover { background: rgba(255,255,255,.14); }
+    .hero-stats {
+      display: flex; gap: 48px; margin-top: 64px; padding-top: 40px;
+      border-top: 1px solid rgba(255,255,255,.08); flex-wrap: wrap;
+    }
+    .hero-stat-val { font-size: 28px; font-weight: 700; color: var(--white); }
+    .hero-stat-lab { font-size: 13px; color: #6B6B6B; margin-top: 2px; }
+
+    /* ── Features ── */
+    .features { padding: 96px 0; background: var(--cream); }
+    .features-header { text-align: center; margin-bottom: 56px; }
+    .features-header h2 { font-size: 36px; font-weight: 700; letter-spacing: -.02em; margin-bottom: 14px; }
+    .features-header p { font-size: 17px; color: var(--text-2); max-width: 500px; margin: 0 auto; }
+    .features-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;
+    }
+    .feature-card {
+      background: var(--white); border: 1px solid var(--border);
+      border-radius: 12px; padding: 28px; transition: border-color .2s, box-shadow .2s;
+    }
+    .feature-card:hover { border-color: var(--coral); box-shadow: 0 4px 20px rgba(217,119,87,.08); }
+    .feature-icon {
+      width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center;
+      justify-content: center; font-size: 22px; margin-bottom: 16px;
+      background: var(--coral-light); border: 1px solid #F4C5A9;
+    }
+    .feature-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+    .feature-card p { font-size: 14px; color: var(--text-2); line-height: 1.65; }
+
+    /* ── Flowchart ── */
+    .flowchart-section { padding: 96px 0; background: var(--white); }
+    .flowchart-header { text-align: center; margin-bottom: 56px; }
+    .flowchart-header h2 { font-size: 36px; font-weight: 700; letter-spacing: -.02em; margin-bottom: 14px; }
+    .flowchart-header p { font-size: 17px; color: var(--text-2); max-width: 520px; margin: 0 auto; }
+    .flowchart-wrap {
+      background: var(--cream); border: 1px solid var(--border); border-radius: 16px;
+      padding: 32px; overflow-x: auto;
+    }
+
+    /* ── Quick Start ── */
+    .quickstart { padding: 96px 0; background: var(--dark); }
+    .quickstart-header { text-align: center; margin-bottom: 56px; }
+    .quickstart-header .section-label { color: var(--coral); }
+    .quickstart-header h2 { font-size: 36px; font-weight: 700; color: var(--white); letter-spacing: -.02em; margin-bottom: 14px; }
+    .quickstart-header p { font-size: 17px; color: #6B6B6B; max-width: 500px; margin: 0 auto; }
+    .steps { display: flex; flex-direction: column; gap: 28px; }
+    .step {
+      background: #222; border: 1px solid #333; border-radius: 12px; overflow: hidden;
+    }
+    .step-header {
+      display: flex; align-items: center; gap: 14px; padding: 20px 24px;
+      border-bottom: 1px solid #2E2E2E;
+    }
+    .step-num {
+      width: 32px; height: 32px; border-radius: 50%; background: var(--coral);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 700; color: var(--white); flex-shrink: 0;
+    }
+    .step-title { font-size: 16px; font-weight: 600; color: var(--white); }
+    .step-body { padding: 20px 24px; }
+    .step-body p { font-size: 14px; color: #8A8A8A; margin-bottom: 14px; }
+    pre {
+      background: var(--code-bg); border: 1px solid #383838; border-radius: 8px;
+      padding: 16px 20px; overflow-x: auto; margin: 0;
+    }
+    code {
+      font-family: var(--mono); font-size: 13px; color: #E8E8E8; line-height: 1.65;
+    }
+    .code-comment { color: #606060; }
+    .code-cmd { color: #D97757; }
+    .code-flag { color: #A8D5A2; }
+    .code-str { color: #F4C5A9; }
+
+    /* ── Config ── */
+    .config-section { padding: 96px 0; background: var(--cream-dark); }
+    .config-section h2 { font-size: 36px; font-weight: 700; letter-spacing: -.02em; margin-bottom: 14px; }
+    .config-section > .container > p { font-size: 17px; color: var(--text-2); margin-bottom: 48px; }
+    .config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+    @media (max-width: 768px) { .config-grid { grid-template-columns: 1fr; } }
+    .config-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    .config-table th {
+      text-align: left; padding: 10px 14px; background: var(--dark); color: var(--white);
+      font-weight: 600; font-size: 12px; letter-spacing: .04em; text-transform: uppercase;
+    }
+    .config-table th:first-child { border-radius: 8px 0 0 0; }
+    .config-table th:last-child { border-radius: 0 8px 0 0; }
+    .config-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .config-table tr:last-child td { border-bottom: none; }
+    .config-table tr:nth-child(even) td { background: rgba(255,255,255,.5); }
+    .config-key { font-family: var(--mono); font-size: 12px; color: var(--coral); font-weight: 500; }
+    .config-table-wrap { background: var(--white); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+    .config-json-wrap { background: var(--code-bg); border-radius: 10px; padding: 24px; overflow-x: auto; }
+    .config-json { font-family: var(--mono); font-size: 12.5px; color: #E8E8E8; line-height: 1.7; white-space: pre; }
+    .json-key { color: #A8D5A2; }
+    .json-val-str { color: #F4C5A9; }
+    .json-val-num { color: #B5CEF7; }
+    .json-val-bool { color: #D97757; }
+
+    /* ── Hotkeys ── */
+    .hotkeys { padding: 64px 0; background: var(--white); border-top: 1px solid var(--border); }
+    .hotkeys h2 { font-size: 28px; font-weight: 700; letter-spacing: -.02em; margin-bottom: 32px; }
+    .hotkey-list { display: flex; flex-direction: column; gap: 14px; }
+    .hotkey-row { display: flex; align-items: center; gap: 20px; }
+    .hotkey-keys { display: flex; gap: 4px; align-items: center; flex-shrink: 0; }
+    .kbd {
+      display: inline-block; padding: 4px 10px; border-radius: 5px;
+      background: var(--cream-dark); border: 1px solid var(--border-2);
+      font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--dark);
+      box-shadow: 0 2px 0 var(--border-2);
+    }
+    .hotkey-plus { color: var(--text-2); font-size: 12px; }
+    .hotkey-desc { font-size: 14px; color: var(--text-2); }
+
+    /* ── Footer ── */
+    footer { background: var(--dark); padding: 48px 0; }
+    .footer-inner {
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 20px;
+    }
+    .footer-logo { font-size: 16px; font-weight: 700; color: var(--white); }
+    .footer-logo span { color: var(--coral); }
+    .footer-links { display: flex; gap: 24px; }
+    .footer-links a { font-size: 13px; color: #6B6B6B; transition: color .15s; }
+    .footer-links a:hover { color: var(--coral); }
+    .footer-note { font-size: 12px; color: #484848; width: 100%; margin-top: 8px; }
+
+    /* ── Responsive nav ── */
+    @media (max-width: 640px) {
+      .nav-links { display: none; }
+      .hero h1 { font-size: 34px; }
+      .hero-stats { gap: 28px; }
+      .features-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════ NAV ═══════════════════════════ -->
+<nav>
+  <div class="nav-inner">
+    <div class="nav-logo">NetInput<span>Share</span></div>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#how-it-works">How it works</a>
+      <a href="#quickstart">Quick start</a>
+      <a href="#config">Config</a>
+      <a href="https://github.com/stoxar06/NetInput_Share-GO" target="_blank" rel="noopener" class="nav-cta">GitHub →</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════════════ HERO ══════════════════════════ -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-badge">Open Source · Linux · Go</div>
+    <h1>One keyboard.<br/>One mouse.<br/><em>Four laptops.</em></h1>
+    <p>NetInput Share is a software KVM over WiFi for Ubuntu Linux. Control up to 4 laptops on your LAN from a single physical keyboard and mouse — no extra hardware needed.</p>
+    <div class="hero-ctas">
+      <a href="#quickstart" class="btn-primary">Get started →</a>
+      <a href="https://github.com/stoxar06/NetInput_Share-GO" target="_blank" rel="noopener" class="btn-secondary">View on GitHub</a>
+    </div>
+    <div class="hero-stats">
+      <div>
+        <div class="hero-stat-val">4</div>
+        <div class="hero-stat-lab">Laptops controlled</div>
+      </div>
+      <div>
+        <div class="hero-stat-val">TCP</div>
+        <div class="hero-stat-lab">Transport protocol</div>
+      </div>
+      <div>
+        <div class="hero-stat-val">0 ms</div>
+        <div class="hero-stat-lab">Extra hardware</div>
+      </div>
+      <div>
+        <div class="hero-stat-val">Go</div>
+        <div class="hero-stat-lab">Single binary per laptop</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════ FEATURES ═════════════════════ -->
+<section class="features" id="features">
+  <div class="container">
+    <div class="features-header">
+      <div class="tag">Features</div>
+      <h2>Everything you need, nothing you don't</h2>
+      <p>Pure software solution. No IP KVM switch, no USB hub, no dongles required.</p>
+    </div>
+    <div class="features-grid">
+
+      <div class="feature-card">
+        <div class="feature-icon">🖱️</div>
+        <h3>Edge Switching</h3>
+        <p>Move your mouse past the right or left edge of a screen and input instantly jumps to the neighbouring laptop. Feels like a multi-monitor setup.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">⌨️</div>
+        <h3>Hotkey Control</h3>
+        <p><strong>Ctrl+Alt+→</strong> and <strong>Ctrl+Alt+←</strong> force-switch screens at any time — even when the mouse is in the middle of a screen.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">📡</div>
+        <h3>mDNS Auto-Discovery</h3>
+        <p>Clients find the server automatically on the LAN via Zeroconf/mDNS. Use <code style="font-family:var(--mono);font-size:13px">--discover</code> and skip manual IP entry entirely.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">🔒</div>
+        <h3>Clean Key Release</h3>
+        <p>When switching screens, a <em>Release All</em> packet is sent to the previous laptop so no keys remain stuck. No ghost keypresses, ever.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">🔄</div>
+        <h3>Auto-Reconnect</h3>
+        <p>Client reconnects automatically with exponential backoff (1 s → 30 s max) if the server restarts or the network hiccups.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">🛠️</div>
+        <h3>Single Binary</h3>
+        <p>Build once, copy anywhere. One <code style="font-family:var(--mono);font-size:13px">netinput-server</code> and one <code style="font-family:var(--mono);font-size:13px">netinput-client</code> binary. No runtime dependencies beyond the kernel.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════ FLOWCHART ════════════════════ -->
+<section class="flowchart-section" id="how-it-works">
+  <div class="container">
+    <div class="flowchart-header">
+      <div class="tag">Architecture</div>
+      <h2>How it works</h2>
+      <p>The server captures raw input events and forwards only the packets needed by the currently active laptop.</p>
+    </div>
+    <div class="flowchart-wrap">
+      <!-- ════ SVG FLOWCHART ════ -->
+      <svg viewBox="0 0 880 590" xmlns="http://www.w3.org/2000/svg"
+           style="width:100%;max-width:880px;margin:0 auto;font-family:'Inter',system-ui,sans-serif">
+        <defs>
+          <!-- Standard grey arrowhead -->
+          <marker id="arr" markerWidth="9" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 9 3.5, 0 7" fill="#9B7A5E"/>
+          </marker>
+          <!-- Coral arrowhead for TCP line -->
+          <marker id="arrC" markerWidth="9" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 9 3.5, 0 7" fill="#D97757"/>
+          </marker>
+        </defs>
+
+        <!-- ── Background ── -->
+        <rect width="880" height="590" fill="#F7F4EF" rx="12"/>
+
+        <!-- ── Divider ── -->
+        <line x1="450" y1="52" x2="450" y2="556" stroke="#E8DDD3" stroke-dasharray="6,4" stroke-width="1.5"/>
+
+        <!-- ══ SERVER HEADER ══ -->
+        <rect x="52" y="12" width="276" height="30" fill="#1A1A1A" rx="6"/>
+        <text x="190" y="31" text-anchor="middle" font-size="12" font-weight="600" fill="#FFFFFF" letter-spacing=".06em">SERVER LAPTOP</text>
+
+        <!-- ══ CLIENT HEADER ══ -->
+        <rect x="552" y="12" width="276" height="30" fill="#1A1A1A" rx="6"/>
+        <text x="690" y="31" text-anchor="middle" font-size="12" font-weight="600" fill="#FFFFFF" letter-spacing=".06em">CLIENT LAPTOP</text>
+
+        <!-- ───────────────── SERVER SIDE ───────────────── -->
+
+        <!-- S1: Physical KB + Mouse -->
+        <rect x="80" y="58" width="220" height="58" fill="#FFF8F5" stroke="#D97757" stroke-width="1.5" rx="8"/>
+        <text x="190" y="82" text-anchor="middle" font-size="14" font-weight="600" fill="#1A1A1A">Physical KB &amp; Mouse</text>
+        <text x="190" y="101" text-anchor="middle" font-size="11" fill="#9B7A5E">/dev/input/event*  ·  evdev</text>
+
+        <!-- Arrow S1 → S2 -->
+        <line x1="190" y1="116" x2="190" y2="133" stroke="#9B7A5E" stroke-width="1.4" marker-end="url(#arr)"/>
+        <text x="206" y="127" font-size="10" fill="#9B7A5E">EV_KEY / EV_REL</text>
+
+        <!-- S2: Evdev Capturer -->
+        <rect x="80" y="135" width="220" height="58" fill="#FFF8F5" stroke="#D97757" stroke-width="1.5" rx="8"/>
+        <text x="190" y="159" text-anchor="middle" font-size="14" font-weight="600" fill="#1A1A1A">Evdev Capturer</text>
+        <text x="190" y="178" text-anchor="middle" font-size="11" fill="#9B7A5E">goroutine per device · Grab()</text>
+
+        <!-- Arrow S2 → S3 -->
+        <line x1="190" y1="193" x2="190" y2="210" stroke="#9B7A5E" stroke-width="1.4" marker-end="url(#arr)"/>
+        <text x="206" y="204" font-size="10" fill="#9B7A5E">chan protocol.Packet</text>
+
+        <!-- S3: Routing Goroutine (tall) -->
+        <rect x="52" y="212" width="276" height="145" fill="#FFFAF7" stroke="#D97757" stroke-width="2" rx="8"/>
+        <text x="190" y="233" text-anchor="middle" font-size="13" font-weight="700" fill="#D97757">Routing Goroutine</text>
+        <line x1="72" y1="241" x2="308" y2="241" stroke="#F4C5A9" stroke-width="1"/>
+        <text x="72" y="259" font-size="11" font-weight="600" fill="#1A1A1A">① Mouse move</text>
+        <text x="85" y="274" font-size="10.5" fill="#6B6B6B">→ edge detection → SwitchTo()</text>
+        <text x="72" y="296" font-size="11" font-weight="600" fill="#1A1A1A">② Hotkey Ctrl+Alt+←/→</text>
+        <text x="85" y="311" font-size="10.5" fill="#6B6B6B">→ packet consumed, screen switches</text>
+        <text x="72" y="333" font-size="11" font-weight="600" fill="#1A1A1A">③ Forward to active client</text>
+        <text x="85" y="348" font-size="10.5" fill="#6B6B6B">→ skip if activeID == 0 (server)</text>
+
+        <!-- Arrow S3 → S4 -->
+        <line x1="190" y1="357" x2="190" y2="374" stroke="#9B7A5E" stroke-width="1.4" marker-end="url(#arr)"/>
+
+        <!-- S4: TCP Server -->
+        <rect x="80" y="376" width="220" height="58" fill="#D97757" stroke="#C96645" stroke-width="1.5" rx="8"/>
+        <text x="190" y="400" text-anchor="middle" font-size="14" font-weight="600" fill="#FFFFFF">TCP Server :24800</text>
+        <text x="190" y="419" text-anchor="middle" font-size="11" fill="#FFE8DD">gob encoding · keep-alive 1 s</text>
+
+        <!-- ══ TCP Connection ══ -->
+        <line x1="300" y1="405" x2="548" y2="405" stroke="#D97757" stroke-width="2"
+              stroke-dasharray="8,4" marker-end="url(#arrC)"/>
+        <text x="424" y="393" text-anchor="middle" font-size="11" font-weight="600" fill="#D97757">TCP · LAN</text>
+
+        <!-- ───────────────── CLIENT SIDE ───────────────── -->
+
+        <!-- C1: TCP Client -->
+        <rect x="552" y="376" width="220" height="58" fill="#D97757" stroke="#C96645" stroke-width="1.5" rx="8"/>
+        <text x="662" y="400" text-anchor="middle" font-size="14" font-weight="600" fill="#FFFFFF">TCP Client</text>
+        <text x="662" y="419" text-anchor="middle" font-size="11" fill="#FFE8DD">reconnects · exponential backoff</text>
+
+        <!-- Arrow C1 → C2 -->
+        <line x1="662" y1="434" x2="662" y2="452" stroke="#9B7A5E" stroke-width="1.4" marker-end="url(#arr)"/>
+
+        <!-- C2: Uinput Injector -->
+        <rect x="552" y="454" width="220" height="58" fill="#FFF8F5" stroke="#D97757" stroke-width="1.5" rx="8"/>
+        <text x="662" y="478" text-anchor="middle" font-size="14" font-weight="600" fill="#1A1A1A">Uinput Injector</text>
+        <text x="662" y="497" text-anchor="middle" font-size="11" fill="#9B7A5E">/dev/uinput · ReleaseAll on switch</text>
+
+        <!-- Arrow C2 → C3 -->
+        <line x1="662" y1="512" x2="662" y2="530" stroke="#9B7A5E" stroke-width="1.4" marker-end="url(#arr)"/>
+
+        <!-- C3: Virtual KB + Mouse -->
+        <rect x="552" y="532" width="220" height="46" fill="#FFF8F5" stroke="#D97757" stroke-width="1.5" rx="8"/>
+        <text x="662" y="552" text-anchor="middle" font-size="14" font-weight="600" fill="#1A1A1A">Virtual KB &amp; Mouse</text>
+        <text x="662" y="568" text-anchor="middle" font-size="11" fill="#9B7A5E">transparent to applications</text>
+
+        <!-- ───────────────── mDNS (optional path) ───────────────── -->
+        <rect x="52" y="460" width="210" height="46" fill="#F0EDE6" stroke="#B8956A" stroke-width="1.2"
+              stroke-dasharray="5,3" rx="8"/>
+        <text x="157" y="479" text-anchor="middle" font-size="12" font-weight="600" fill="#6B6B6B">mDNS Discovery</text>
+        <text x="157" y="496" text-anchor="middle" font-size="10" fill="#9B7A5E">_netinput._tcp · zeroconf</text>
+
+        <!-- mDNS dashed connector from S4 left side -->
+        <path d="M 157,434 L 157,460" fill="none" stroke="#B8956A" stroke-width="1.1" stroke-dasharray="4,3"/>
+        <line x1="80" y1="434" x2="157" y2="434" stroke="#B8956A" stroke-width="1.1" stroke-dasharray="4,3"/>
+
+        <!-- "optional" label -->
+        <text x="157" y="520" text-anchor="middle" font-size="10" fill="#B8956A" font-style="italic">optional · --discover flag</text>
+
+        <!-- ── Legend ── -->
+        <g transform="translate(52, 550)">
+          <line x1="0" y1="6" x2="20" y2="6" stroke="#D97757" stroke-width="2" stroke-dasharray="6,3"/>
+          <text x="26" y="10" font-size="10" fill="#6B6B6B">TCP stream</text>
+          <line x1="90" y1="6" x2="110" y2="6" stroke="#B8956A" stroke-width="1.1" stroke-dasharray="4,3"/>
+          <text x="116" y="10" font-size="10" fill="#6B6B6B">optional / discovery</text>
+          <line x1="230" y1="6" x2="250" y2="6" stroke="#9B7A5E" stroke-width="1.4" marker-end="url(#arr)"/>
+          <text x="256" y="10" font-size="10" fill="#6B6B6B">data flow</text>
+        </g>
+      </svg>
+      <!-- ════ END SVG ════ -->
+    </div>
+
+    <!-- Packet table -->
+    <div style="margin-top:40px">
+      <h3 style="font-size:18px;font-weight:700;margin-bottom:16px">Wire format — <code style="font-family:var(--mono);font-size:15px;color:var(--coral)">protocol.Packet</code></h3>
+      <div style="overflow-x:auto">
+        <table class="config-table" style="min-width:560px">
+          <thead>
+            <tr>
+              <th>Type constant</th>
+              <th>Value</th>
+              <th>Purpose</th>
+              <th>Key fields used</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class="config-key">PacketMouseMove</td><td>1</td><td>Relative cursor delta</td><td>DX, DY</td></tr>
+            <tr><td class="config-key">PacketMouseButton</td><td>2</td><td>Mouse button press/release</td><td>Button, Value</td></tr>
+            <tr><td class="config-key">PacketMouseScroll</td><td>3</td><td>Scroll wheel</td><td>DY</td></tr>
+            <tr><td class="config-key">PacketKeyDown</td><td>4</td><td>Key press (or repeat)</td><td>Button, Value</td></tr>
+            <tr><td class="config-key">PacketKeyUp</td><td>5</td><td>Key release</td><td>Button</td></tr>
+            <tr><td class="config-key">PacketSwitchScreen</td><td>6</td><td>Notify client it is now active</td><td>ScreenID</td></tr>
+            <tr><td class="config-key">PacketKeepAlive</td><td>7</td><td>Heartbeat — 1 s interval</td><td>Timestamp</td></tr>
+            <tr><td class="config-key">PacketHandshake</td><td>8</td><td>Client identifies itself on connect</td><td>Data (gob HandshakePayload)</td></tr>
+            <tr><td class="config-key">PacketReleaseAll</td><td>9</td><td>Release all held keys on old screen</td><td>—</td></tr>
+            <tr><td class="config-key">PacketClipboard</td><td>10</td><td>Clipboard text sync (Phase 3)</td><td>Data</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════ QUICK START ══════════════════ -->
+<section class="quickstart" id="quickstart">
+  <div class="container">
+    <div class="quickstart-header">
+      <div class="section-label">Quick Start</div>
+      <h2>Up and running in 3 steps</h2>
+      <p>Run the installer once on every laptop, then start the server and clients.</p>
+    </div>
+    <div class="steps">
+
+      <!-- Step 1 -->
+      <div class="step">
+        <div class="step-header">
+          <div class="step-num">1</div>
+          <div class="step-title">Install on every laptop (server + all clients)</div>
+        </div>
+        <div class="step-body">
+          <p>The script installs Go, system libraries, udev rules, adds your user to the <code style="font-family:var(--mono)">input</code> group, and builds both binaries.</p>
+          <pre><code><span class="code-comment"># Clone the repo on each laptop</span>
+git clone https://github.com/stoxar06/NetInput_Share-GO.git
+cd NetInput_Share-GO
+
+<span class="code-comment"># Run installer (once per machine)</span>
+chmod +x install.sh &amp;&amp; ./install.sh
+
+<span class="code-comment"># Log out and back in so input group takes effect, then verify:</span>
+ls -la /dev/uinput   <span class="code-comment"># should show input group with rw</span></code></pre>
+        </div>
+      </div>
+
+      <!-- Step 2 -->
+      <div class="step">
+        <div class="step-header">
+          <div class="step-num">2</div>
+          <div class="step-title">Start the server (laptop with physical KB + mouse)</div>
+        </div>
+        <div class="step-body">
+          <p>The server auto-detects your keyboard and mouse. Pass <code style="font-family:var(--mono)">--keyboard</code> and <code style="font-family:var(--mono)">--mouse</code> flags to pick specific devices.</p>
+          <pre><code><span class="code-comment"># Start with default config.json</span>
+./netinput-server
+
+<span class="code-comment"># Or specify devices manually</span>
+./netinput-server <span class="code-flag">--keyboard</span> /dev/input/event3 <span class="code-flag">--mouse</span> /dev/input/event5
+
+<span class="code-comment"># List detected devices if unsure</span>
+ls /dev/input/by-id/</code></pre>
+        </div>
+      </div>
+
+      <!-- Step 3 -->
+      <div class="step">
+        <div class="step-header">
+          <div class="step-num">3</div>
+          <div class="step-title">Start clients on each remote laptop</div>
+        </div>
+        <div class="step-body">
+          <p>Each client needs a unique <code style="font-family:var(--mono)">--id</code> (1, 2, or 3). Use <code style="font-family:var(--mono)">--discover</code> to find the server automatically, or pass the IP directly.</p>
+          <pre><code><span class="code-comment"># Option A — auto-discover server on LAN</span>
+./netinput-client <span class="code-flag">--discover</span> <span class="code-flag">--id</span> 1    <span class="code-comment"># Laptop 2 (Screen 1)</span>
+./netinput-client <span class="code-flag">--discover</span> <span class="code-flag">--id</span> 2    <span class="code-comment"># Laptop 3 (Screen 2)</span>
+./netinput-client <span class="code-flag">--discover</span> <span class="code-flag">--id</span> 3    <span class="code-comment"># Laptop 4 (Screen 3)</span>
+
+<span class="code-comment"># Option B — specify server IP</span>
+./netinput-client <span class="code-flag">--server</span> <span class="code-str">192.168.1.100</span> <span class="code-flag">--id</span> 1</code></pre>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════ CONFIG ════════════════════════ -->
+<section class="config-section" id="config">
+  <div class="container">
+    <div class="tag">Configuration</div>
+    <h2>config.json reference</h2>
+    <p>Place <code style="font-family:var(--mono);font-size:15px">config.json</code> next to your binary. All fields are optional — defaults are shown below.</p>
+
+    <div class="config-grid">
+      <div>
+        <div class="config-table-wrap">
+          <table class="config-table">
+            <thead>
+              <tr><th>Key</th><th>Default</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="config-key">mode</td><td>"server"</td><td>Set to "client" on client machines</td></tr>
+              <tr><td class="config-key">server_port</td><td>24800</td><td>TCP port for connections</td></tr>
+              <tr><td class="config-key">server_ip</td><td>"auto"</td><td>Bind IP; "auto" uses all interfaces</td></tr>
+              <tr><td class="config-key">layout</td><td>"horizontal"</td><td>Screen arrangement</td></tr>
+              <tr><td class="config-key">edge_switch</td><td>true</td><td>Switch on mouse edge detection</td></tr>
+              <tr><td class="config-key">hotkey_switch</td><td>"ctrl+alt+right"</td><td>Hotkey to move focus right</td></tr>
+              <tr><td class="config-key">hotkey_back</td><td>"ctrl+alt+left"</td><td>Hotkey to move focus left</td></tr>
+              <tr><td class="config-key">clipboard_sync</td><td>true</td><td>Clipboard sharing (Phase 3)</td></tr>
+              <tr><td class="config-key">log_level</td><td>"info"</td><td>"debug" for verbose logs</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Hotkeys -->
+        <div style="margin-top:32px">
+          <h3 style="font-size:18px;font-weight:700;margin-bottom:20px">Keyboard shortcuts</h3>
+          <div class="hotkey-list">
+            <div class="hotkey-row">
+              <div class="hotkey-keys">
+                <span class="kbd">Ctrl</span>
+                <span class="hotkey-plus">+</span>
+                <span class="kbd">Alt</span>
+                <span class="hotkey-plus">+</span>
+                <span class="kbd">→</span>
+              </div>
+              <div class="hotkey-desc">Switch focus to the <strong>next</strong> screen</div>
+            </div>
+            <div class="hotkey-row">
+              <div class="hotkey-keys">
+                <span class="kbd">Ctrl</span>
+                <span class="hotkey-plus">+</span>
+                <span class="kbd">Alt</span>
+                <span class="hotkey-plus">+</span>
+                <span class="kbd">←</span>
+              </div>
+              <div class="hotkey-desc">Switch focus to the <strong>previous</strong> screen</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="config-json-wrap">
+          <div class="config-json"><span style="color:#606060">// config.json — full example</span>
+{
+  <span class="json-key">"mode"</span>: <span class="json-val-str">"server"</span>,
+  <span class="json-key">"server_port"</span>: <span class="json-val-num">24800</span>,
+  <span class="json-key">"server_ip"</span>: <span class="json-val-str">"auto"</span>,
+  <span class="json-key">"layout"</span>: <span class="json-val-str">"horizontal"</span>,
+  <span class="json-key">"edge_switch"</span>: <span class="json-val-bool">true</span>,
+  <span class="json-key">"hotkey_switch"</span>: <span class="json-val-str">"ctrl+alt+right"</span>,
+  <span class="json-key">"hotkey_back"</span>: <span class="json-val-str">"ctrl+alt+left"</span>,
+  <span class="json-key">"clipboard_sync"</span>: <span class="json-val-bool">true</span>,
+  <span class="json-key">"log_level"</span>: <span class="json-val-str">"info"</span>,
+  <span class="json-key">"screens"</span>: [
+    {
+      <span class="json-key">"id"</span>: <span class="json-val-num">0</span>,
+      <span class="json-key">"name"</span>: <span class="json-val-str">"Main"</span>,
+      <span class="json-key">"ip"</span>: <span class="json-val-str">"self"</span>,
+      <span class="json-key">"width"</span>: <span class="json-val-num">1920</span>,
+      <span class="json-key">"height"</span>: <span class="json-val-num">1080</span>
+    },
+    {
+      <span class="json-key">"id"</span>: <span class="json-val-num">1</span>,
+      <span class="json-key">"name"</span>: <span class="json-val-str">"Laptop2"</span>,
+      <span class="json-key">"ip"</span>: <span class="json-val-str">"192.168.1.101"</span>,
+      <span class="json-key">"width"</span>: <span class="json-val-num">1920</span>,
+      <span class="json-key">"height"</span>: <span class="json-val-num">1080</span>
+    },
+    {
+      <span class="json-key">"id"</span>: <span class="json-val-num">2</span>,
+      <span class="json-key">"name"</span>: <span class="json-val-str">"Laptop3"</span>,
+      <span class="json-key">"ip"</span>: <span class="json-val-str">"192.168.1.102"</span>,
+      <span class="json-key">"width"</span>: <span class="json-val-num">1920</span>,
+      <span class="json-key">"height"</span>: <span class="json-val-num">1080</span>
+    },
+    {
+      <span class="json-key">"id"</span>: <span class="json-val-num">3</span>,
+      <span class="json-key">"name"</span>: <span class="json-val-str">"Laptop4"</span>,
+      <span class="json-key">"ip"</span>: <span class="json-val-str">"192.168.1.103"</span>,
+      <span class="json-key">"width"</span>: <span class="json-val-num">1920</span>,
+      <span class="json-key">"height"</span>: <span class="json-val-num">1080</span>
+    }
+  ]
+}</div>
+        </div>
+
+        <!-- Permissions note -->
+        <div style="margin-top:20px;background:var(--white);border:1px solid var(--border);border-radius:10px;padding:20px">
+          <p style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--dark)">udev rules (auto-applied by install.sh)</p>
+          <pre style="margin:0"><code style="font-size:12px"><span class="code-comment"># /etc/udev/rules.d/99-netinput.rules</span>
+KERNEL=="uinput",  GROUP="input", MODE="0660"
+KERNEL=="event*",  GROUP="input", MODE="0660"</code></pre>
+          <p style="font-size:12px;color:var(--text-2);margin-top:10px">These rules allow members of the <code style="font-family:var(--mono)">input</code> group to use evdev and uinput without running as root.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════ FOOTER ════════════════════════ -->
+<footer>
+  <div class="container footer-inner">
+    <div class="footer-logo">NetInput<span>Share</span></div>
+    <div class="footer-links">
+      <a href="https://github.com/stoxar06/NetInput_Share-GO" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/stoxar06/NetInput_Share-GO/issues" target="_blank" rel="noopener">Issues</a>
+      <a href="#quickstart">Quick start</a>
+      <a href="#config">Config</a>
+    </div>
+    <p class="footer-note">MIT License · Built with Go 1.22 · evdev · uinput · zeroconf · Fyne</p>
+  </div>
+</footer>
+
+</body>
+</html>
