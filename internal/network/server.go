@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/gob"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -148,7 +149,8 @@ func (s *Server) handleClient(ctx context.Context, conn net.Conn) {
 		conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 		_, err := readPacket(conn)
 		if err != nil {
-			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+			var netErr net.Error
+			if errors.As(err, &netErr) && netErr.Timeout() {
 				select {
 				case <-ctx.Done():
 					return

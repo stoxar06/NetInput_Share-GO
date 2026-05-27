@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/gob"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -113,7 +114,8 @@ func (c *Client) connect(ctx context.Context) error {
 		conn.SetReadDeadline(time.Now().Add(3 * time.Second))
 		pkt, err := readPacket(conn)
 		if err != nil {
-			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+			var netErr net.Error
+		if errors.As(err, &netErr) && netErr.Timeout() {
 				select {
 				case <-ctx.Done():
 					return ctx.Err()
