@@ -169,11 +169,10 @@ func ListDevices() (keyboards []string, mice []string, err error) {
 		return nil, nil, fmt.Errorf("ListDevices: %w", err)
 	}
 	for _, dev := range devices {
-		caps := dev.Capabilities()
-		if isKeyboard(caps) {
+		if isKeyboard(dev) {
 			keyboards = append(keyboards, dev.Fn)
 		}
-		if isMouse(caps) {
+		if isMouse(dev) {
 			mice = append(mice, dev.Fn)
 		}
 		dev.File.Close()
@@ -181,8 +180,8 @@ func ListDevices() (keyboards []string, mice []string, err error) {
 	return keyboards, mice, nil
 }
 
-func isKeyboard(caps map[evdev.CapabilityType][]evdev.CapabilityCode) bool {
-	codes, ok := caps[evdev.EV_KEY]
+func isKeyboard(dev *evdev.InputDevice) bool {
+	codes, ok := dev.CapabilitiesFlat[evdev.EV_KEY]
 	if !ok {
 		return false
 	}
@@ -194,8 +193,8 @@ func isKeyboard(caps map[evdev.CapabilityType][]evdev.CapabilityCode) bool {
 	return false
 }
 
-func isMouse(caps map[evdev.CapabilityType][]evdev.CapabilityCode) bool {
-	codes, ok := caps[evdev.EV_REL]
+func isMouse(dev *evdev.InputDevice) bool {
+	codes, ok := dev.CapabilitiesFlat[evdev.EV_REL]
 	if !ok {
 		return false
 	}

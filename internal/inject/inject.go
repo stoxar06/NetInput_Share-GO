@@ -76,7 +76,7 @@ func (inj *Injector) Start(ctx context.Context) error {
 func (inj *Injector) dispatch(pkt protocol.Packet) error {
 	switch pkt.Type {
 	case protocol.PacketMouseMove:
-		return inj.mouse.MoveRelative(pkt.DX, pkt.DY)
+		return inj.mouse.Move(pkt.DX, pkt.DY)
 
 	case protocol.PacketMouseButton:
 		return inj.mouseButton(int(pkt.Button), pkt.Value)
