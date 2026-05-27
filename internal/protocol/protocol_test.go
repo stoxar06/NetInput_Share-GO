@@ -1,6 +1,7 @@
 package protocol
 
 import (
+	"reflect"
 	"testing"
 	"time"
 )
@@ -17,7 +18,6 @@ func TestEncodeDecode_roundtrip(t *testing.T) {
 		Value:     0,
 		Timestamp: time.Now().UnixNano(),
 	}
-
 	data, err := Encode(original)
 	if err != nil {
 		t.Fatalf("Encode: %v", err)
@@ -26,7 +26,7 @@ func TestEncodeDecode_roundtrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
-	if got != original {
+	if !reflect.DeepEqual(got, original) {
 		t.Errorf("roundtrip mismatch: got %+v want %+v", got, original)
 	}
 }
@@ -35,7 +35,8 @@ func TestEncodeDecode_allTypes(t *testing.T) {
 	types := []uint8{
 		PacketMouseMove, PacketMouseButton, PacketMouseScroll,
 		PacketKeyDown, PacketKeyUp, PacketSwitchScreen,
-		PacketKeepAlive, PacketHandshake, PacketReleaseAll, PacketClipboard,
+		PacketKeepAlive, PacketHandshake, PacketReleaseAll,
+		PacketClipboard, PacketWarpCursor,
 	}
 	for _, typ := range types {
 		pkt := Packet{Type: typ, Button: 42, Value: 1}
@@ -68,6 +69,21 @@ func TestEncodeDecode_withData(t *testing.T) {
 	}
 	if string(got.Data) != "hello clipboard" {
 		t.Errorf("Data mismatch: got %q", got.Data)
+	}
+}
+
+func TestEncodeDecode_warpCursor(t *testing.T) {
+	pkt := Packet{Type: PacketWarpCursor, X: 960, Y: 540}
+	data, err := Encode(pkt)
+	if err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	got, err := Decode(data)
+	if err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+	if got.X != 960 || got.Y != 540 {
+		t.Errorf("warp coords: got (%d,%d) want (960,540)", got.X, got.Y)
 	}
 }
 

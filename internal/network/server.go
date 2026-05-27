@@ -23,6 +23,7 @@ const keepAliveInterval = time.Second
 type ClientConn struct {
 	ScreenID uint8
 	Name     string
+	Height   int32
 	conn     net.Conn
 	mu       sync.Mutex
 }
@@ -128,6 +129,7 @@ func (s *Server) handleClient(ctx context.Context, conn net.Conn) {
 	client := &ClientConn{
 		ScreenID: payload.ScreenID,
 		Name:     payload.Name,
+		Height:   payload.Height,
 		conn:     conn,
 	}
 
@@ -212,14 +214,17 @@ func (s *Server) keepAliveLoop(ctx context.Context) {
 	}
 }
 
-// SwitchTo switches active screen to the given screenID.
+// SwitchTo switches the active screen.
+// It releases keys on the old client and warps the new client's cursor to the
+// left entry edge so that accumulated-delta tracking stays accurate.
 func (s *Server) SwitchTo(screenID uint8) {
 	s.mu.Lock()
 	old := s.activeID
 	s.activeID = screenID
-	var oldClient *ClientConn
+	var oldClient, newClient *ClientConn
 	if old != screenID {
 		oldClient = s.clients[old]
+		newClient = s.clients[screenID]
 	}
 	s.mu.Unlock()
 
@@ -227,7 +232,18 @@ func (s *Server) SwitchTo(screenID uint8) {
 	if oldClient != nil {
 		_ = oldClient.Send(protocol.Packet{Type: protocol.PacketReleaseAll})
 	}
+	if newClient != nil {
+		_ = newClient.Send(protocol.Packet{
+			Type: protocol.PacketWarpCursor,
+			X:    entryX,
+			Y:    newClient.Height / 2,
+		})
+	}
 }
+
+// entryX is the x-coordinate clients are warped to on screen entry.
+// Must match screen.EntryX so CursorX tracking starts at the same value.
+const entryX int32 = 5
 
 // ActiveID returns the currently active screen ID.
 func (s *Server) ActiveID() uint8 {

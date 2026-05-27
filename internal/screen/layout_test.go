@@ -24,6 +24,7 @@ func TestUpdateCursor_noSwitch(t *testing.T) {
 
 func TestUpdateCursor_switchRight(t *testing.T) {
 	l := fourScreenLayout()
+	// Start at centre (960). Need to push past 1920.
 	newID, switched := l.UpdateCursor(1920, 0)
 	if !switched {
 		t.Error("expected switch when cursor crosses right edge")
@@ -31,14 +32,17 @@ func TestUpdateCursor_switchRight(t *testing.T) {
 	if newID != 1 {
 		t.Errorf("expected screenID 1, got %d", newID)
 	}
+	if l.CursorX != EntryX {
+		t.Errorf("expected CursorX=%d on entry, got %d", EntryX, l.CursorX)
+	}
 }
 
 func TestUpdateCursor_switchRightThenBack(t *testing.T) {
 	l := fourScreenLayout()
-	l.UpdateCursor(1920, 0) // now on screen 1
-	newID, switched := l.UpdateCursor(-1920, 0)
+	l.UpdateCursor(1920, 0)        // switch to screen 1; CursorX = EntryX
+	newID, switched := l.UpdateCursor(-1920, 0) // cross left edge
 	if !switched {
-		t.Error("expected switch back to left screen")
+		t.Error("expected switch back to screen 0")
 	}
 	if newID != 0 {
 		t.Errorf("expected screenID 0, got %d", newID)
@@ -47,16 +51,15 @@ func TestUpdateCursor_switchRightThenBack(t *testing.T) {
 
 func TestUpdateCursor_clampAtLeftEdge(t *testing.T) {
 	l := fourScreenLayout()
-	newID, switched := l.UpdateCursor(-500, 0)
+	newID, switched := l.UpdateCursor(-9999, 0)
 	if switched {
 		t.Error("expected no switch at leftmost screen")
 	}
 	if newID != 0 {
 		t.Error("expected to stay on screen 0")
 	}
-	// Buffer is capped at -switchThreshold when already at first screen.
-	if l.CursorX != -switchThreshold {
-		t.Errorf("expected CursorX capped at -%d, got %d", switchThreshold, l.CursorX)
+	if l.CursorX != 0 {
+		t.Errorf("expected CursorX clamped to 0, got %d", l.CursorX)
 	}
 }
 
@@ -73,9 +76,8 @@ func TestUpdateCursor_clampAtRightEdge(t *testing.T) {
 	if newID != 3 {
 		t.Errorf("expected screenID 3, got %d", newID)
 	}
-	// Buffer is capped at +switchThreshold when already at last screen.
-	if l.CursorX != switchThreshold {
-		t.Errorf("expected CursorX capped at %d, got %d", switchThreshold, l.CursorX)
+	if l.CursorX != 1919 {
+		t.Errorf("expected CursorX clamped to 1919, got %d", l.CursorX)
 	}
 }
 

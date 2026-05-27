@@ -7,6 +7,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
+	"os/exec"
+	"strconv"
 	"sync"
 
 	"github.com/bendahl/uinput"
@@ -98,6 +101,10 @@ func (inj *Injector) dispatch(pkt protocol.Packet) error {
 		inj.mu.Unlock()
 		return inj.keyboard.KeyUp(key)
 
+	case protocol.PacketWarpCursor:
+		warpCursor(pkt.X, pkt.Y)
+		return nil
+
 	case protocol.PacketReleaseAll:
 		return inj.releaseAll()
 
@@ -129,6 +136,26 @@ func (inj *Injector) mouseButton(code int, value int32) error {
 		return inj.mouse.MiddleRelease()
 	}
 	return nil
+}
+
+// warpCursor moves the X11 cursor to an absolute position using xdotool.
+// Tries the current DISPLAY env var first, then falls back to :0.
+// Requires: apt install xdotool  and  run client with: sudo -E ./netinput-client
+func warpCursor(x, y int32) {
+	xs := strconv.Itoa(int(x))
+	ys := strconv.Itoa(int(y))
+	displays := []string{os.Getenv("DISPLAY"), ":0", ":1"}
+	for _, d := range displays {
+		if d == "" {
+			continue
+		}
+		cmd := exec.Command("xdotool", "mousemove", "--", xs, ys)
+		cmd.Env = append(os.Environ(), "DISPLAY="+d)
+		if err := cmd.Run(); err == nil {
+			return
+		}
+	}
+	slog.Warn("inject: cursor warp failed — install xdotool and run with sudo -E")
 }
 
 func (inj *Injector) releaseAll() error {

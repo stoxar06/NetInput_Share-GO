@@ -4,10 +4,10 @@ package screen
 
 import "fmt"
 
-// switchThreshold is how many pixels the mouse must travel continuously in
-// one direction before a screen switch fires. Resets to zero on any reversal,
-// so small wobbles never trigger an accidental switch.
-const switchThreshold = 300
+// EntryX is the x-coordinate a client cursor is warped to when entering from
+// the left (coming from the previous screen). Must match network/server.go's
+// entryX constant so the server's CursorX tracking starts at the same value.
+const EntryX = 5
 
 // Screen represents one laptop in the layout.
 type Screen struct {
@@ -18,21 +18,27 @@ type Screen struct {
 	Height int
 }
 
-// Layout holds the arrangement of screens.
-// CursorX is a directional push buffer (not an absolute position):
-// positive = rightward push accumulated, negative = leftward push accumulated.
-// It resets to zero whenever the mouse reverses direction.
+// Layout tracks the logical cursor position across all screens.
+// CursorX is an absolute x-coordinate within the active screen.
+// When a client screen is entered the server sends a warp so the visual
+// cursor matches CursorX, making edge detection accurate.
 type Layout struct {
 	Screens  []Screen
 	Mode     string
 	ActiveID uint8
-	CursorX  int // directional push buffer
+	CursorX  int
 	CursorY  int
 }
 
-// NewLayout creates a Layout from config screens.
+// NewLayout creates a Layout. CursorX starts at the centre of screen 0 —
+// a reasonable approximation since we don't warp the server cursor at start.
 func NewLayout(screens []Screen, mode string) *Layout {
-	return &Layout{Screens: screens, Mode: mode}
+	l := &Layout{Screens: screens, Mode: mode}
+	if len(screens) > 0 {
+		l.CursorX = screens[0].Width / 2
+		l.CursorY = screens[0].Height / 2
+	}
+	return l
 }
 
 // ActiveScreen returns the currently focused screen.
@@ -45,17 +51,20 @@ func (l *Layout) ActiveScreen() Screen {
 	return l.Screens[0]
 }
 
-// UpdateCursor processes one mouse-move delta and returns the new active
-// screen ID plus whether a screen switch occurred.
+// UpdateCursor moves the cursor by (dx, dy) and returns the new active screen
+// ID plus whether a switch occurred.
 //
-// CursorX is a directional push buffer: it accumulates movement in one
-// direction and resets to zero when the direction reverses. A switch fires
-// only after switchThreshold pixels of uninterrupted movement past the edge.
-// This means the cursor can move freely on any screen without accidentally
-// triggering a switch — only a deliberate sustained sweep does it.
+// Entering from the left (switching right): CursorX = EntryX.
+// The server simultaneously sends PacketWarpCursor(EntryX, Height/2) to the
+// client so its visual cursor matches — edge detection is then accurate.
+//
+// Entering from the right (switching back): CursorX = Width/2 (centre).
+// No warp is sent to the server screen; the user presses right ~Width/2 px
+// to switch again, or uses Ctrl+Alt+→.
 func (l *Layout) UpdateCursor(dx, dy int) (newID uint8, switched bool) {
-	// Y clamping (cosmetic only).
 	active := l.ActiveScreen()
+
+	l.CursorX += dx
 	l.CursorY += dy
 	if l.CursorY < 0 {
 		l.CursorY = 0
@@ -64,37 +73,25 @@ func (l *Layout) UpdateCursor(dx, dy int) (newID uint8, switched bool) {
 		l.CursorY = active.Height - 1
 	}
 
-	// Directional push buffer: reset on direction reversal.
-	if dx > 0 {
-		if l.CursorX < 0 {
-			l.CursorX = 0
-		}
-		l.CursorX += dx
-	} else if dx < 0 {
-		if l.CursorX > 0 {
-			l.CursorX = 0
-		}
-		l.CursorX += dx
-	}
-
-	// Right push: switch to next screen.
-	if l.CursorX >= switchThreshold {
-		if int(l.ActiveID) < len(l.Screens)-1 {
-			l.ActiveID++
-			l.CursorX = 0
-			return l.ActiveID, true
-		}
-		l.CursorX = switchThreshold // cap; no next screen
-	}
-
-	// Left push: switch to previous screen.
-	if l.CursorX <= -switchThreshold {
+	// Past left edge → switch to previous screen.
+	if l.CursorX < 0 {
 		if l.ActiveID > 0 {
 			l.ActiveID--
-			l.CursorX = 0
+			prev := l.screenByID(l.ActiveID)
+			l.CursorX = prev.Width / 2 // enter previous screen at centre
 			return l.ActiveID, true
 		}
-		l.CursorX = -switchThreshold // cap; already at first screen
+		l.CursorX = 0 // already at leftmost screen
+	}
+
+	// Past right edge → switch to next screen.
+	if l.CursorX >= active.Width {
+		if int(l.ActiveID) < len(l.Screens)-1 {
+			l.ActiveID++
+			l.CursorX = EntryX // enter new screen at known entry point (matches warp)
+			return l.ActiveID, true
+		}
+		l.CursorX = active.Width - 1 // already at rightmost screen
 	}
 
 	return l.ActiveID, false
@@ -106,7 +103,7 @@ func (l *Layout) SwitchNext() (uint8, error) {
 		return l.ActiveID, fmt.Errorf("already at last screen")
 	}
 	l.ActiveID++
-	l.CursorX = 0
+	l.CursorX = EntryX
 	return l.ActiveID, nil
 }
 
@@ -116,15 +113,20 @@ func (l *Layout) SwitchPrev() (uint8, error) {
 		return l.ActiveID, fmt.Errorf("already at first screen")
 	}
 	l.ActiveID--
-	l.CursorX = 0
+	prev := l.screenByID(l.ActiveID)
+	l.CursorX = prev.Width / 2
 	return l.ActiveID, nil
 }
 
 // RevertSwitch undoes a switch when the target screen has no connected client.
 func (l *Layout) RevertSwitch(prevID uint8, movedRight bool) {
 	l.ActiveID = prevID
-	l.CursorX = 0
-	_ = movedRight
+	prev := l.screenByID(prevID)
+	if movedRight {
+		l.CursorX = prev.Width - 1 // clamp at right edge
+	} else {
+		l.CursorX = 0 // clamp at left edge
+	}
 }
 
 func (l *Layout) screenByID(id uint8) Screen {
