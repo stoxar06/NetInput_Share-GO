@@ -79,6 +79,9 @@ func (c *Client) connect(ctx context.Context) error {
 		return fmt.Errorf("client dial: %w", err)
 	}
 	defer conn.Close()
+	if tc, ok := conn.(*net.TCPConn); ok {
+		tc.SetNoDelay(true)
+	}
 	slog.Info("client: connected to server", "addr", c.serverAddr)
 
 	// Build and send handshake.

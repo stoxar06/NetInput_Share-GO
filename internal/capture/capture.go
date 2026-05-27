@@ -30,50 +30,53 @@ func New(keyboardPath, mousePath string, out chan<- protocol.Packet) *Capturer {
 }
 
 // Run starts capturing input events. Blocks until ctx is cancelled.
+// If a device disconnects mid-session it is automatically reopened.
 func (c *Capturer) Run(ctx context.Context) error {
-	kb, err := openWithRetry(ctx, c.keyboardPath)
-	if err != nil {
-		return fmt.Errorf("capture: open keyboard: %w", err)
-	}
-	defer kb.File.Close()
-
-	ms, err := openWithRetry(ctx, c.mousePath)
-	if err != nil {
-		return fmt.Errorf("capture: open mouse: %w", err)
-	}
-	defer ms.File.Close()
-
-	if err := kb.Grab(); err != nil {
-		return fmt.Errorf("capture: grab keyboard: %w", err)
-	}
-	defer kb.Release()
-
-	if err := ms.Grab(); err != nil {
-		return fmt.Errorf("capture: grab mouse: %w", err)
-	}
-	defer ms.Release()
-
 	slog.Info("capture: started", "keyboard", c.keyboardPath, "mouse", c.mousePath)
+	go c.runDevice(ctx, c.keyboardPath, "keyboard", c.readKeyboard)
+	go c.runDevice(ctx, c.mousePath, "mouse", c.readMouse)
+	<-ctx.Done()
+	return ctx.Err()
+}
 
-	// Close devices when ctx is cancelled to unblock ReadOne.
-	go func() {
-		<-ctx.Done()
-		kb.File.Close()
-		ms.File.Close()
-	}()
-
-	errCh := make(chan error, 2)
-	go func() { errCh <- c.readKeyboard(ctx, kb) }()
-	go func() { errCh <- c.readMouse(ctx, ms) }()
-
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case err := <-errCh:
-		if ctx.Err() != nil {
-			return ctx.Err()
+// runDevice opens the device and runs reader in a loop, reopening on disconnect.
+func (c *Capturer) runDevice(ctx context.Context, path, kind string, reader func(context.Context, *evdev.InputDevice) error) {
+	for {
+		dev, err := openWithRetry(ctx, path)
+		if err != nil {
+			return // ctx cancelled during open
 		}
-		return err
+		if err := dev.Grab(); err != nil {
+			slog.Warn("capture: grab failed, retrying", "path", path, "err", err)
+			dev.File.Close()
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(2 * time.Second):
+				continue
+			}
+		}
+		slog.Info("capture: device ready", "kind", kind, "path", path)
+
+		// Unblock ReadOne when ctx is cancelled.
+		stop := make(chan struct{})
+		go func() {
+			select {
+			case <-ctx.Done():
+				dev.File.Close()
+			case <-stop:
+			}
+		}()
+
+		err = reader(ctx, dev)
+		close(stop)
+		dev.Release()
+		dev.File.Close()
+
+		if ctx.Err() != nil {
+			return
+		}
+		slog.Warn("capture: device disconnected, reopening", "kind", kind, "path", path, "err", err)
 	}
 }
 

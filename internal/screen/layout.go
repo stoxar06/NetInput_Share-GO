@@ -23,8 +23,16 @@ type Layout struct {
 }
 
 // NewLayout creates a Layout from config screens.
+// CursorX/Y are initialised to the centre of the server screen so that
+// edge detection fires after roughly half a screen-width of movement,
+// not a full screen-width from the top-left corner.
 func NewLayout(screens []Screen, mode string) *Layout {
-	return &Layout{Screens: screens, Mode: mode}
+	l := &Layout{Screens: screens, Mode: mode}
+	if len(screens) > 0 {
+		l.CursorX = screens[0].Width / 2
+		l.CursorY = screens[0].Height / 2
+	}
+	return l
 }
 
 // ActiveScreen returns the currently focused screen.
@@ -54,9 +62,9 @@ func (l *Layout) UpdateCursor(dx, dy int) (newID uint8, switched bool) {
 
 	if l.CursorX < 0 {
 		if l.ActiveID > 0 {
-			left := l.screenByID(l.ActiveID - 1)
 			l.ActiveID--
-			l.CursorX = left.Width - 1
+			prev := l.screenByID(l.ActiveID)
+			l.CursorX = prev.Width / 2
 			return l.ActiveID, true
 		}
 		l.CursorX = 0
@@ -65,7 +73,8 @@ func (l *Layout) UpdateCursor(dx, dy int) (newID uint8, switched bool) {
 	if l.CursorX >= active.Width {
 		if int(l.ActiveID) < len(l.Screens)-1 {
 			l.ActiveID++
-			l.CursorX = 0
+			next := l.screenByID(l.ActiveID)
+			l.CursorX = next.Width / 2
 			return l.ActiveID, true
 		}
 		l.CursorX = active.Width - 1
@@ -90,6 +99,17 @@ func (l *Layout) SwitchPrev() (uint8, error) {
 	}
 	l.ActiveID--
 	return l.ActiveID, nil
+}
+
+// RevertSwitch undoes a switch that UpdateCursor just made when the target
+// screen turned out to have no connected client. prevID is the screen we
+// were on before; movedRight tells us which edge to clamp to.
+func (l *Layout) RevertSwitch(prevID uint8, movedRight bool) {
+	l.ActiveID = prevID
+	prev := l.screenByID(prevID)
+	// Reset to center so the user never needs more than Width/2 movement to switch back.
+	l.CursorX = prev.Width / 2
+	_ = movedRight
 }
 
 func (l *Layout) screenByID(id uint8) Screen {

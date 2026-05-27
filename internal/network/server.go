@@ -102,6 +102,10 @@ func (s *Server) acceptLoop(ctx context.Context, ln net.Listener) {
 func (s *Server) handleClient(ctx context.Context, conn net.Conn) {
 	defer conn.Close()
 
+	if tc, ok := conn.(*net.TCPConn); ok {
+		tc.SetNoDelay(true)
+	}
+
 	// Read handshake with a generous timeout.
 	conn.SetDeadline(time.Now().Add(10 * time.Second))
 	pkt, err := readPacket(conn)
@@ -219,9 +223,9 @@ func (s *Server) SwitchTo(screenID uint8) {
 	}
 	s.mu.Unlock()
 
+	slog.Info("server: switched screen", "from", old, "to", screenID)
 	if oldClient != nil {
 		_ = oldClient.Send(protocol.Packet{Type: protocol.PacketReleaseAll})
-		slog.Info("server: switched screen", "from", old, "to", screenID)
 	}
 }
 
@@ -230,6 +234,14 @@ func (s *Server) ActiveID() uint8 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.activeID
+}
+
+// HasClient returns true if a client is connected for the given screenID.
+func (s *Server) HasClient(screenID uint8) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	_, ok := s.clients[screenID]
+	return ok
 }
 
 // readPacket reads a length-prefixed packet from conn.

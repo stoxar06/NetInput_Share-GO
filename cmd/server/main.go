@@ -107,9 +107,15 @@ func main() {
 					return
 				}
 				if pkt.Type == protocol.PacketMouseMove {
+					prevID := layout.ActiveID
 					newID, switched := layout.UpdateCursor(int(pkt.DX), int(pkt.DY))
 					if switched {
-						srv.SwitchTo(newID)
+						if newID == 0 || srv.HasClient(newID) {
+							srv.SwitchTo(newID)
+						} else {
+							// Target screen has no client — stay put.
+							layout.RevertSwitch(prevID, newID > prevID)
+						}
 					}
 				}
 				// Hotkey check: consume matching key packets, don't forward them.
@@ -148,6 +154,12 @@ func main() {
 
 func resolveDevices(keyboardFlag, mouseFlag string) (string, string, error) {
 	if keyboardFlag != "" && mouseFlag != "" {
+		if err := checkDeviceExists(keyboardFlag, "keyboard"); err != nil {
+			return "", "", err
+		}
+		if err := checkDeviceExists(mouseFlag, "mouse"); err != nil {
+			return "", "", err
+		}
 		return keyboardFlag, mouseFlag, nil
 	}
 
@@ -179,4 +191,33 @@ func resolveDevices(keyboardFlag, mouseFlag string) (string, string, error) {
 	}
 
 	return kbPath, mPath, nil
+}
+
+func checkDeviceExists(path, kind string) error {
+	if _, err := os.Stat(path); err == nil {
+		return nil
+	}
+
+	// Device not found — list available ones to help the user pick the right path.
+	keyboards, mice, listErr := capture.ListDevices()
+
+	fmt.Fprintf(os.Stderr, "\nERROR: %s device %q not found\n", kind, path)
+	if listErr == nil {
+		fmt.Fprintf(os.Stderr, "\nAvailable keyboards:\n")
+		if len(keyboards) == 0 {
+			fmt.Fprintf(os.Stderr, "  (none detected)\n")
+		}
+		for _, k := range keyboards {
+			fmt.Fprintf(os.Stderr, "  %s\n", k)
+		}
+		fmt.Fprintf(os.Stderr, "\nAvailable mice:\n")
+		if len(mice) == 0 {
+			fmt.Fprintf(os.Stderr, "  (none detected)\n")
+		}
+		for _, m := range mice {
+			fmt.Fprintf(os.Stderr, "  %s\n", m)
+		}
+		fmt.Fprintf(os.Stderr, "\nRe-run with the correct path, e.g.:\n  sudo ./netinput-server --keyboard <path> --mouse <path>\n\n")
+	}
+	return fmt.Errorf("%s device %q does not exist", kind, path)
 }
