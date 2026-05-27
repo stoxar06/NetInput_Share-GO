@@ -54,8 +54,9 @@ func TestUpdateCursor_clampAtLeftEdge(t *testing.T) {
 	if newID != 0 {
 		t.Error("expected to stay on screen 0")
 	}
-	if l.CursorX != 0 {
-		t.Errorf("expected CursorX clamped to 0, got %d", l.CursorX)
+	// Buffer is capped at -switchThreshold when already at first screen.
+	if l.CursorX != -switchThreshold {
+		t.Errorf("expected CursorX capped at -%d, got %d", switchThreshold, l.CursorX)
 	}
 }
 
@@ -72,8 +73,9 @@ func TestUpdateCursor_clampAtRightEdge(t *testing.T) {
 	if newID != 3 {
 		t.Errorf("expected screenID 3, got %d", newID)
 	}
-	if l.CursorX != 1919 {
-		t.Errorf("expected CursorX clamped to 1919, got %d", l.CursorX)
+	// Buffer is capped at +switchThreshold when already at last screen.
+	if l.CursorX != switchThreshold {
+		t.Errorf("expected CursorX capped at %d, got %d", switchThreshold, l.CursorX)
 	}
 }
 
